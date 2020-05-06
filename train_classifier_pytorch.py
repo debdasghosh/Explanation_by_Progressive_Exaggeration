@@ -50,7 +50,7 @@ def run():
     BATCH_SIZE = config['batch_size']
     EPOCHS = config['epochs']
     channels = config['num_channel']
-    input_size = 32 #config['input_size'] 
+    input_size = config['input_size'] 
     N_CLASSES = config['num_classes'] 
     ckpt_dir_continue = config['ckpt_dir_continue']    
     if ckpt_dir_continue == '':
@@ -93,42 +93,12 @@ def run():
     testLoader = udata.DataLoader(testDataset, batch_size=BATCH_SIZE, num_workers=1, pin_memory=True, shuffle=False) # create your dataloader
 
     trainLoader = testLoader
-    
-    '''
-    normMean = [0.49139968, 0.48215827, 0.44653124]
-    normStd = [0.24703233, 0.24348505, 0.26158768]
-    normTransform = transforms.Normalize(normMean, normStd)
 
-    trainTransform = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        normTransform
-    ])
-    testTransform = transforms.Compose([
-        transforms.ToTensor(),
-        normTransform
-    ])
-    kwargs = {'num_workers': 1, 'pin_memory': True} 
-    trainLoader = DataLoader(
-        dset.CIFAR10(root='cifar', train=True, download=True,
-                     transform=trainTransform),
-        batch_size=BATCH_SIZE, shuffle=True, **kwargs)
-    testLoader = DataLoader(
-        dset.CIFAR10(root='cifar', train=False, download=True,
-                     transform=testTransform),
-        batch_size=BATCH_SIZE, shuffle=False, **kwargs)
-    
-    N_CLASSES = 10
-    '''
-    #for batch_idx, (data, target) in enumerate(trainLoader):
-        #data, target = data.cuda(), target.cuda()
-        #print(data)
-
-
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net = densenet.DenseNet(growthRate=12, depth=100, reduction=0.5, bottleneck=True, nClasses=N_CLASSES)
     #net = densenet3.DenseNet3(40, N_CLASSES, 12, reduction=1.0, bottleneck=False, dropRate=0.0)
     net = net.cuda()
+    #net = net.to(device)
     optimizer = optim.Adam(net.parameters(), weight_decay=1e-4)
 
     for epoch in range(1, EPOCHS + 1):
@@ -151,7 +121,8 @@ def train( epoch, net, trainLoader, optimizer ):
         loss.backward()
         optimizer.step()
         nProcessed += len(data)
-        pred = output.data.max(1)[1] 
+        #pred = output.data.max(1)[1] 
+        pred = (output>0.5).float()
         incorrect = pred.ne(target.data).cpu().sum()
         err = 100.*incorrect/len(data)
         partialEpoch = epoch + batch_idx / len(trainLoader) - 1
@@ -168,8 +139,9 @@ def test( epoch, net, testLoader, optimizer):
         data, target = data.cuda(), target.cuda()
         data, target = Variable(data, volatile=True), Variable(target)
         output = net(data)
-        test_loss += F.binary_cross_entropy(output, target).data[0]
-        pred = output.data.max(1)[1] # get the index of the max log-probability
+        test_loss += F.binary_cross_entropy(output, target)#.data[0]
+        #pred = output.data.max(1)[1] # get the index of the max log-probability
+        pred = (output>0.5).float()
         incorrect += pred.ne(target.data).cpu().sum()
 
     test_loss = test_loss

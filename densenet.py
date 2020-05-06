@@ -114,8 +114,8 @@ class DenseNet(nn.Module):
         out = torch.squeeze(F.avg_pool2d(F.relu(self.bn1(out)), 8))
         #out = F.log_softmax(self.fc(out))
         #return out
-        print(out.shape)
-        logit = nn.Linear(in_features = out.shape[1], out_features=self.n_label, bias=False)
+
+        logit = nn.Linear(in_features = out.shape[1], out_features=self.n_label, bias=False).cuda()
         out = logit(out)
         out = F.sigmoid(out)
         return out
