@@ -11,7 +11,7 @@ log_dir: './output/classifier/CelebA'
 name: 'DenseNet'
 
 num_channel: 3
-input_size: 128
+input_size: 32
 num_classes: 40
 batch_size: 32
 epochs: 10
