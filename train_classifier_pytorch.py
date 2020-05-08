@@ -27,7 +27,7 @@ from torch.utils import data as udata
 from torch.utils.data import DataLoader
 import math
 import densenet
-
+from torch.utils.tensorboard import SummaryWriter
 
 
 def run():
@@ -94,6 +94,7 @@ def run():
 
     trainLoader = testLoader
 
+    tb = SummaryWriter()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     net = densenet.DenseNet(growthRate=12, depth=100, reduction=0.5, bottleneck=True, nClasses=N_CLASSES)
     #net = densenet3.DenseNet3(40, N_CLASSES, 12, reduction=1.0, bottleneck=False, dropRate=0.0)
@@ -102,54 +103,88 @@ def run():
     optimizer = optim.Adam(net.parameters(), weight_decay=1e-4)
 
     for epoch in range(1, EPOCHS + 1):
-            train( epoch, net, trainLoader, optimizer)
-            test( epoch, net, testLoader, optimizer)
+            train( epoch, net, trainLoader, optimizer, tb)
+            test( epoch, net, testLoader, optimizer, tb)
             torch.save(net, os.path.join('./', 'latest.pth'))
+    tb.close()
 
+def get_num_correct(preds, labels):
+    return preds.eq(labels).sum().item()
 
-
-def train( epoch, net, trainLoader, optimizer ):
+def train( epoch, net, trainLoader, optimizer, tb ):
     net.train()
     nProcessed = 0
     nTrain = len(trainLoader.dataset)
+
+    total_loss = 0
+    total_correct = 0
+
     for batch_idx, (data, target) in enumerate(trainLoader):
         data, target = data.cuda(), target.cuda()
         data, target = Variable(data), Variable(target)
         optimizer.zero_grad()
         output = net(data)
-        loss = F.binary_cross_entropy(output, target)
+        #loss = F.binary_cross_entropy(output, target)
+        lossFn = nn.BCELoss()
+        loss = lossFn(output, target)
         loss.backward()
         optimizer.step()
+
         nProcessed += len(data)
         #pred = output.data.max(1)[1] 
         pred = (output>0.5).float()
+        total_loss += loss.item()
+        correct = get_num_correct(pred, target)
+        total_correct += correct
         incorrect = pred.ne(target.data).cpu().sum()
         err = 100.*incorrect/len(data)
         partialEpoch = epoch + batch_idx / len(trainLoader) - 1
+
+        print(incorrect)
+        print(correct)
+
         print('Train Epoch: {:.2f} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tError: {:.6f}'.format(
             partialEpoch, nProcessed, nTrain, 100. * batch_idx / len(trainLoader),
             loss.data, err)) #loss.data[0]
+        
+
+    tb.add_scalar('Loss', total_loss, epoch)
+    tb.add_scalar('Number Correct', total_correct, epoch)
+
+    
 
 
-def test( epoch, net, testLoader, optimizer):
+def test( epoch, net, testLoader, optimizer, tb):
     net.eval()
     test_loss = 0
     incorrect = 0
+
+    total_loss = 0
+    total_correct = 0
+
     for data, target in testLoader:
         data, target = data.cuda(), target.cuda()
         data, target = Variable(data, volatile=True), Variable(target)
         output = net(data)
-        test_loss += F.binary_cross_entropy(output, target)#.data[0]
+        #test_loss += F.binary_cross_entropy(output, target)#.data[0]
+        lossFn = nn.BCELoss()
+        loss = lossFn(output, target)
+        test_loss = loss.item()
         #pred = output.data.max(1)[1] # get the index of the max log-probability
         pred = (output>0.5).float()
         incorrect += pred.ne(target.data).cpu().sum()
+        total_loss += loss.item()
+        correct = get_num_correct(pred, target)
+        total_correct += correct
 
-    test_loss = test_loss
     test_loss /= len(testLoader) # loss function already averages over batch size
     nTotal = len(testLoader.dataset)
     err = 100.*incorrect/nTotal
     print('\nTest set: Average loss: {:.4f}, Error: {}/{} ({:.0f}%)\n'.format(
         test_loss, incorrect, nTotal, err))
+        
+    tb.add_scalar('Loss', total_loss, epoch)
+    tb.add_scalar('Number Correct', total_correct, epoch)
 
 
 
