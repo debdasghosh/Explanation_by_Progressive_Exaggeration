@@ -123,7 +123,7 @@ def run():
 
     tb = SummaryWriter()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    net = torch.hub.load('pytorch/vision:v0.6.0', 'densenet121', pretrained=True)
+    net = torch.hub.load('pytorch/vision:v0.6.0', 'densenet121', pretrained=False)
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'densenet169', pretrained=True)
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'densenet201', pretrained=True)
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'densenet161', pretrained=True)
@@ -161,8 +161,8 @@ def run():
     for epoch in range(1, EPOCHS + 1):
         train( epoch, net, trainLoader, optimizer, tb)
             
-        images, labels = next(iter(trainLoader))
-        tb.add_graph(net, images)
+        #images, labels = next(iter(trainLoader))
+        #tb.add_graph(net, images)
         #torch.cuda.empty_cache()
         
         test( epoch, net, testLoader, optimizer, tb)
